@@ -4,6 +4,7 @@ import static com.dazednconfused.catalauncher.helper.Constants.APP_NAME;
 
 import com.dazednconfused.catalauncher.backup.SaveManager;
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
+import com.dazednconfused.catalauncher.gui.action.SaveBackupActions;
 import com.dazednconfused.catalauncher.helper.FileExplorerManager;
 import com.dazednconfused.catalauncher.helper.GitInfoManager;
 import com.dazednconfused.catalauncher.helper.LogLevelManager;
@@ -96,6 +97,16 @@ public class MainWindow {
     private JButton backupDeleteButton;
     private JButton backupRestoreButton;
     private JCheckBox backupOnExitCheckBox;
+    private final SaveBackupActions saveBackupActions = new SaveBackupActions(
+        mainPanel,
+        this::refreshGuiElements,
+        globalProgressBar,
+        saveBackupsTable,
+        backupNowButton,
+        backupDeleteButton,
+        backupRestoreButton,
+        backupOnExitCheckBox
+    );
 
     // SOUNDPACKS TAB ---
     private JTable soundpacksTable;
@@ -291,180 +302,30 @@ public class MainWindow {
     private Runnable setupSaveBackupsGui() {
 
         // BACKUP NOW BUTTON LISTENER ---
-        this.backupNowButton.addActionListener(e -> {
-            LOGGER.trace("Save backup button clicked");
-
-            // enable backup progressbar
-            this.globalProgressBar.setEnabled(true);
-
-            // disable backup buttons (don't want to do multiple operations simultaneously)
-            this.disableSaveBackupButtons();
-
-            SaveManager.backupCurrentSaves(percentageComplete -> this.globalProgressBar.setValue(percentageComplete)).ifPresent(Thread::start);
-        });
+        this.backupNowButton.addActionListener(this.saveBackupActions.onSaveBackupButtonClicked());
 
         // BACKUP RESTORE BUTTON LISTENER ---
         this.backupRestoreButton.setMnemonic(KeyEvent.VK_R);
-        this.backupRestoreButton.addActionListener(e -> {
-            LOGGER.trace("Save backup restore button clicked");
-
-            File selectedBackup = (File) this.saveBackupsTable.getValueAt(this.saveBackupsTable.getSelectedRow(), 1);
-            LOGGER.trace("Save backup currently on selection: [{}]", selectedBackup);
-
-            ConfirmDialog confirmDialog = new ConfirmDialog(
-                String.format("Are you sure you want to restore the backup [%s]? Current save will be moved to trash folder [%s]", selectedBackup.getName(), Paths.getCustomTrashedSavePath()),
-                ConfirmDialog.ConfirmDialogType.INFO,
-                confirmed -> {
-                    LOGGER.trace("Confirmation dialog result: [{}]", confirmed);
-
-                    if (confirmed) {
-                        // enable backup progressbar
-                        this.globalProgressBar.setEnabled(true);
-
-                        // disable backup buttons (don't want to do multiple operations simultaneously)
-                        this.disableSaveBackupButtons();
-
-                        SaveManager.restoreBackup(
-                            selectedBackup,
-                            percentageComplete -> this.globalProgressBar.setValue(percentageComplete)
-                        ).ifPresent(Thread::start);
-
-                        this.refreshGuiElements();
-                    }
-                }
-            );
-
-            confirmDialog.packCenterAndShow(this.mainPanel);
-        });
+        this.backupRestoreButton.addActionListener(this.saveBackupActions.onSaveBackupRestoreButtonClicked());
 
         // BACKUP DELETE BUTTON LISTENER ---
         this.backupDeleteButton.setMnemonic(KeyEvent.VK_D);
-        this.backupDeleteButton.addActionListener(e -> {
-            LOGGER.trace("Delete backup button clicked");
-
-            File selectedBackup = (File) this.saveBackupsTable.getValueAt(this.saveBackupsTable.getSelectedRow(), 1);
-            LOGGER.trace("Save backup currently on selection: [{}]", selectedBackup);
-
-            ConfirmDialog confirmDialog = new ConfirmDialog(
-                String.format("Are you sure you want to delete the backup [%s]? This action is irreversible!", selectedBackup.getName()),
-                ConfirmDialog.ConfirmDialogType.WARNING,
-                confirmed -> {
-                    LOGGER.trace("Confirmation dialog result: [{}]", confirmed);
-
-                    if (confirmed) {
-                        SaveManager.deleteBackup(selectedBackup);
-                        this.refreshGuiElements();
-                    }
-                }
-            );
-
-            confirmDialog.packCenterAndShow(this.mainPanel);
-        });
+        this.backupDeleteButton.addActionListener(this.saveBackupActions.onDeleteBackupButtonClicked());
 
         // BACKUP TABLE LISTENER(S) ---
-        this.saveBackupsTable.getSelectionModel().addListSelectionListener(event -> {
-            LOGGER.trace("Save backups table row selected");
-
-            if (saveBackupsTable.getSelectedRow() > -1) {
-                this.backupDeleteButton.setEnabled(true);
-                this.backupRestoreButton.setEnabled(true);
-            }
-        });
-
-        BiConsumer<MouseEvent, JTable> onSaveBackupsTableRightClickEvent = (e, table) -> {
-            LOGGER.trace("Save backups table clicked");
-
-            int r = table.rowAtPoint(e.getPoint());
-            if (r >= 0 && r < table.getRowCount()) {
-                table.setRowSelectionInterval(r, r);
-            } else {
-                table.clearSelection();
-            }
-
-            int rowindex = table.getSelectedRow();
-            if (rowindex < 0) {
-                return;
-            }
-
-            if (e.isPopupTrigger() && e.getComponent() instanceof JTable) {
-                LOGGER.trace("Opening right-click popup for [{}]", table.getName());
-                File targetFile = ((File) table.getValueAt(table.getSelectedRow(), 1));
-                LOGGER.trace("File under selection: [{}]", targetFile);
-
-                JPopupMenu popup = new JPopupMenu();
-
-                JMenuItem openInFinder = new JMenuItem("Open in file explorer");
-                openInFinder.addActionListener(e1 -> FileExplorerManager.openFileInFileExplorer(targetFile, true));
-                popup.add(openInFinder);
-
-                JMenuItem renameTo = new JMenuItem("Rename to...");
-                renameTo.addActionListener(e1 -> {
-                    LOGGER.trace("Rename backup menu clicked");
-
-                    StringInputDialog confirmDialog = new StringInputDialog(
-                        String.format("Rename backup [%s] to...", targetFile.getName()),
-                        newNameOptional -> {
-                            LOGGER.trace("User input dialog result: [{}]", newNameOptional);
-
-                            newNameOptional.ifPresent(newName ->
-                                SaveManager.renameBackup(targetFile, newName).toEither().peekLeft(error ->
-                                    ErrorDialog.showErrorDialog("Could not rename save backup!", error.getError()).packCenterAndShow(this.mainPanel)
-                                )
-                            );
-
-                            this.refreshGuiElements();
-                        }
-                    );
-
-                    confirmDialog.packCenterAndShow(this.mainPanel);
-                });
-                popup.add(renameTo);
-
-                JMenuItem deleteBackup = new JMenuItem("Delete...");
-                deleteBackup.addActionListener(e1 -> backupDeleteButton.doClick());
-                popup.add(deleteBackup);
-
-                JMenuItem restoreBackup = new JMenuItem("Restore...");
-                restoreBackup.addActionListener(e1 -> backupRestoreButton.doClick());
-                popup.add(restoreBackup);
-
-                popup.show(e.getComponent(), e.getX(), e.getY());
-            }
-        };
+        this.saveBackupsTable.getSelectionModel().addListSelectionListener(this.saveBackupActions.onSaveBackupsTableRowSelected());
 
         this.saveBackupsTable.addMouseListener(new MouseAdapter() {
             public void mousePressed(MouseEvent e) { // mousedPressed event needed for macOS - https://stackoverflow.com/a/3558324
-                onSaveBackupsTableRightClickEvent.accept(e, (JTable) e.getComponent());
+                saveBackupActions.onSaveBackupsTableClicked(e);
             }
 
             public void mouseReleased(MouseEvent e) { // mouseReleased event needed for other OSes
-                onSaveBackupsTableRightClickEvent.accept(e, (JTable) e.getComponent());
+                saveBackupActions.onSaveBackupsTableClicked(e);
             }
         });
 
-        return () -> {
-            LOGGER.trace("Refreshing save-backup-management GUI elements...");
-
-            boolean saveFilesExist = SaveManager.saveFilesExist();
-
-            // DETERMINE IF BACKUP NOW BUTTON SHOULD BE ENABLED ---
-            if (saveFilesExist) {
-                this.backupNowButton.setEnabled(true);
-            } else {
-                this.backupNowButton.setEnabled(false);
-            }
-
-            // SET SAVE BACKUPS TABLE ---
-            this.refreshSaveBackupsTable();
-
-            // DETERMINE IF BACKUP RESTORE BUTTON SHOULD BE DISABLED  ---
-            // DETERMINE IF BACKUP DELETE BUTTON SHOULD BE DISABLED ---
-            // (ie: if last backup was just deleted)
-            if (SaveManager.listAllBackups().isEmpty() || this.saveBackupsTable.getSelectedRow() == -1) {
-                this.backupDeleteButton.setEnabled(false);
-                this.backupRestoreButton.setEnabled(false);
-            }
-        };
+        return this.saveBackupActions::refreshSaveBackupTab;
     }
 
     /**
@@ -831,17 +692,6 @@ public class MainWindow {
     }
 
     /**
-     * Disables all backup-section buttons.
-     */
-    private void disableSaveBackupButtons() {
-        LOGGER.trace("Disabling save backup buttons...");
-
-        this.backupNowButton.setEnabled(false);
-        this.backupDeleteButton.setEnabled(false);
-        this.backupRestoreButton.setEnabled(false);
-    }
-
-    /**
      * Initializes {@link FlatLaf}'s Look & Feel (and other MacOS-specific goodies).
      */
     private static void initializeLookAndFeel() {
@@ -924,33 +774,6 @@ public class MainWindow {
         for (Runnable guiRefreshRunnable : this.guiRefreshingRunnables) {
             new Thread(guiRefreshRunnable).start();
         }
-    }
-
-    /**
-     * Refreshes current {@link #saveBackupsTable} with latest info coming from {@link SaveManager}.
-     */
-    private void refreshSaveBackupsTable() {
-        LOGGER.trace("Refreshing save backups table...");
-
-        String[] columns = new String[]{"Name", "Path", "Size", "Date"};
-
-        List<Object[]> values = new ArrayList<>();
-        SaveManager.listAllBackups().stream().sorted(Comparator.comparing(File::lastModified).reversed()).forEach(backup ->
-            values.add(new Object[]{
-                backup.getName(),
-                backup,
-                backup.length() / (1024 * 1024) + " MB",
-                new Date(backup.lastModified())
-            })
-        );
-
-        TableModel tableModel = new DefaultTableModel(values.toArray(new Object[][]{}), columns) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        this.saveBackupsTable.setModel(tableModel);
     }
 
     /**
