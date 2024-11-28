@@ -39,12 +39,12 @@ public class SaveBackupActions {
     private static final Logger LOGGER = LoggerFactory.getLogger(SaveBackupActions.class);
 
     private final JPanel mainPanel;
+    private final JProgressBar globalProgressBar;
     private final JTable saveBackupsTable;
     private final JButton backupNowButton;
     private final JButton backupDeleteButton;
     private final JButton backupRestoreButton;
     private final JCheckBox backupOnExitCheckBox;
-    private final JProgressBar globalProgressBar;
 
     /**
      * Public constructor.

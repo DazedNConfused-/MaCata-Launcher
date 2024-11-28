@@ -5,6 +5,7 @@ import static com.dazednconfused.catalauncher.helper.Constants.APP_NAME;
 import com.dazednconfused.catalauncher.backup.SaveManager;
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
 import com.dazednconfused.catalauncher.gui.listener.SaveBackupActions;
+import com.dazednconfused.catalauncher.gui.listener.SoundpackActions;
 import com.dazednconfused.catalauncher.helper.FileExplorerManager;
 import com.dazednconfused.catalauncher.helper.GitInfoManager;
 import com.dazednconfused.catalauncher.helper.LogLevelManager;
@@ -13,7 +14,6 @@ import com.dazednconfused.catalauncher.helper.sysinfo.SystemInfoManager;
 import com.dazednconfused.catalauncher.launcher.CDDALauncherManager;
 import com.dazednconfused.catalauncher.mod.ModManager;
 import com.dazednconfused.catalauncher.mod.dto.ModDTO;
-import com.dazednconfused.catalauncher.soundpack.SoundpackManager;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLaf;
 
@@ -30,7 +30,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.ObjIntConsumer;
@@ -111,6 +110,13 @@ public class MainWindow {
     private JTable soundpacksTable;
     private JButton installSoundpackButton;
     private JButton uninstallSoundpackButton;
+    private final SoundpackActions soundpackActions = new SoundpackActions(
+        mainPanel,
+        globalProgressBar,
+        soundpacksTable,
+        installSoundpackButton,
+        uninstallSoundpackButton
+    );
 
     // MODS TAB ---
     private JTable modsTable;
@@ -205,7 +211,7 @@ public class MainWindow {
             if (this.globalProgressBar.getValue() == 100) {
                 // refresh gui
                 // TODO remove this global refresh here in the progress bar - ideally each tab should know whether to refresh their elements or not
-                this.refreshGuiElements();
+                // this.refreshGuiElements();
 
                 // reset backup progressbar
                 this.globalProgressBar.setValue(0);
@@ -336,140 +342,25 @@ public class MainWindow {
     private Runnable setupSoundpacksGui() {
 
         // SOUNDPACK INSTALL BUTTON LISTENER ---
-        this.installSoundpackButton.addActionListener(e -> {
-            LOGGER.trace("Install soundpack button clicked");
-
-            JFileChooser fileChooser = new NativeJFileChooser();
-            fileChooser.setDialogTitle("Select soundpack folder to install");
-            fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-            int result = fileChooser.showOpenDialog(mainPanel);
-
-            if (result == JFileChooser.APPROVE_OPTION && fileChooser.getSelectedFile() != null) {
-
-                // enable global progressbar
-                this.globalProgressBar.setEnabled(true);
-
-                // setup dummy timer to give user visual feedback that his operation is in progress...
-                Timer dummyTimer = new Timer(10, e1 -> {
-                    if (this.globalProgressBar.getValue() < 99) { // it's important to keep this from hitting 100% while it is in its dummy-loop...
-                        this.globalProgressBar.setValue(this.globalProgressBar.getValue() + 1);
-                    }
-                });
-
-                // start timer before triggering installation
-                dummyTimer.start();
-
-                // execute the installation in a background thread, outside the Event Dispatch Thread (EDT)
-                SwingWorker<Void, Void> worker = new SwingWorker<>() {
-                    @Override
-                    protected Void doInBackground() {
-                        SoundpackManager.installSoundpack(fileChooser.getSelectedFile(), p -> dummyTimer.stop());
-                        return null;
-                    }
-
-                    @Override
-                    protected void done() {
-                        dummyTimer.stop(); // ensure the timer is stopped when the task is complete
-                        globalProgressBar.setValue(100); // this will refresh the GUI upon hitting 100%
-                    }
-                };
-
-                // start the worker thread
-                worker.execute();
-            } else {
-                LOGGER.trace("Exiting soundpack finder dialog with no selection...");
-            }
-        });
+        this.installSoundpackButton.addActionListener(this.soundpackActions.onInstallSoundpackButtonClicked());
 
         // SOUNDPACK DELETE BUTTON LISTENER ---
-        this.uninstallSoundpackButton.addActionListener(e -> {
-            LOGGER.trace("Uninstall soundpack button clicked");
-
-            File selectedSoundpack = (File) this.soundpacksTable.getValueAt(this.soundpacksTable.getSelectedRow(), 1);
-            LOGGER.trace("Soundpack currently on selection: [{}]", selectedSoundpack);
-
-            ConfirmDialog confirmDialog = new ConfirmDialog(
-                String.format("Are you sure you want to delete the soundpack [%s]? This action is irreversible!", selectedSoundpack.getName()),
-                ConfirmDialog.ConfirmDialogType.WARNING,
-                confirmed -> {
-                    LOGGER.trace("Confirmation dialog result: [{}]", confirmed);
-
-                    if (confirmed) {
-                        SoundpackManager.deleteSoundpack(selectedSoundpack);
-                        this.refreshGuiElements();
-                    }
-                }
-            );
-
-            confirmDialog.packCenterAndShow(this.mainPanel);
-        });
+        this.uninstallSoundpackButton.addActionListener(this.soundpackActions.onUninstallSoundpackButtonClicked());
 
         // SOUNDPACKS TABLE LISTENER(S) ---
-        this.soundpacksTable.getSelectionModel().addListSelectionListener(event -> {
-            LOGGER.trace("Soundpacks table row selected");
-
-            if (soundpacksTable.getSelectedRow() > -1) {
-                this.uninstallSoundpackButton.setEnabled(true);
-            }
-        });
-
-        BiConsumer<MouseEvent, JTable> onSoundpacksTableRightClickEvent = (e, table) -> {
-            LOGGER.trace("Soundpacks table clicked");
-
-            int r = table.rowAtPoint(e.getPoint());
-            if (r >= 0 && r < table.getRowCount()) {
-                table.setRowSelectionInterval(r, r);
-            } else {
-                table.clearSelection();
-            }
-
-            int rowindex = table.getSelectedRow();
-            if (rowindex < 0) {
-                return;
-            }
-
-            if (e.isPopupTrigger() && e.getComponent() instanceof JTable) {
-                LOGGER.trace("Opening right-click popup for [{}]", table.getName());
-                File targetFile = ((File) table.getValueAt(table.getSelectedRow(), 1));
-
-                JPopupMenu popup = new JPopupMenu();
-
-                JMenuItem openInFinder = new JMenuItem("Open folder in file explorer");
-                openInFinder.addActionListener(e1 -> {
-                    FileExplorerManager.openFileInFileExplorer(targetFile, false);
-                });
-                popup.add(openInFinder);
-
-                JMenuItem uninstall = new JMenuItem("Uninstall...");
-                uninstall.addActionListener(e1 -> uninstallSoundpackButton.doClick());
-                popup.add(uninstall);
-
-                popup.show(e.getComponent(), e.getX(), e.getY());
-            }
-        };
+        this.soundpacksTable.getSelectionModel().addListSelectionListener(this.soundpackActions.onSoundpacksTableRowSelected());
 
         this.soundpacksTable.addMouseListener(new MouseAdapter() {
             public void mousePressed(MouseEvent e) { // mousedPressed event needed for macOS - https://stackoverflow.com/a/3558324
-                onSoundpacksTableRightClickEvent.accept(e, (JTable) e.getComponent());
+                soundpackActions.onSoundpacksTableClicked(e);
             }
 
             public void mouseReleased(MouseEvent e) { // mouseReleased event needed for other OSes
-                onSoundpacksTableRightClickEvent.accept(e, (JTable) e.getComponent());
+                soundpackActions.onSoundpacksTableClicked(e);
             }
         });
 
-        return () -> {
-            LOGGER.trace("Refreshing soundpack-management GUI elements...");
-
-            // SET SOUNDPACKS TABLE ---
-            this.refreshSoundpacksTable();
-
-            // DETERMINE IF SOUNDPACK DELETE BUTTON SHOULD BE DISABLED ---
-            // (ie: if last backup was just deleted)
-            if (SoundpackManager.listAllSoundpacks().isEmpty() || this.soundpacksTable.getSelectedRow() == -1) {
-                this.uninstallSoundpackButton.setEnabled(false);
-            }
-        };
+        return this.soundpackActions::refreshSoundpackGui;
     }
 
     /**
@@ -774,33 +665,6 @@ public class MainWindow {
         for (Runnable guiRefreshRunnable : this.guiRefreshingRunnables) {
             new Thread(guiRefreshRunnable).start();
         }
-    }
-
-    /**
-     * Refreshes current {@link #soundpacksTable} with latest info coming from {@link SoundpackManager}.
-     */
-    private void refreshSoundpacksTable() {
-        LOGGER.trace("Refreshing soundpacks table...");
-
-        String[] columns = new String[]{"Name", "Path", "Size", "Date"};
-
-        List<Object[]> values = new ArrayList<>();
-        SoundpackManager.listAllSoundpacks().stream().sorted(Comparator.comparing(File::lastModified).reversed()).forEach(soundpack ->
-                values.add(new Object[]{
-                    soundpack.getName(),
-                    soundpack,
-                    FileUtils.sizeOfDirectory(soundpack) / (1024 * 1024) + " MB",
-                    new Date(soundpack.lastModified())
-                })
-        );
-
-        TableModel tableModel = new DefaultTableModel(values.toArray(new Object[][]{}), columns) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        this.soundpacksTable.setModel(tableModel);
     }
 
     /**
