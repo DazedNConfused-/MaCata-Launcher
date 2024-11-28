@@ -32,6 +32,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.ObjIntConsumer;
 
 import javax.swing.AbstractAction;
 import javax.swing.JButton;
@@ -629,7 +630,7 @@ public class MainWindow {
         // the install button is going to open a tiny popup that will, in turn, open a dialog for either zip files OR directories
         // this is in order to support modpacks that can either be present as isolated directories, or fresh zip downloads
 
-        BiConsumer<ActionEvent, Integer> installModButtonClickedFor = (e, jFileChooserType) -> {
+        ObjIntConsumer<ActionEvent> installModButtonClickedFor = (e, jFileChooserType) -> {
             LOGGER.trace("Install mod button clicked");
 
             JFileChooser fileChooser = new NativeJFileChooser();
@@ -724,6 +725,7 @@ public class MainWindow {
         }));
 
         this.installModButton.addMouseListener(new MouseAdapter() {
+            @Override
             public void mousePressed(MouseEvent e) {
                 installModButtonPopupMenu.show(e.getComponent(), e.getX(), e.getY());
             }
