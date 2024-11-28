@@ -4,7 +4,7 @@ import static com.dazednconfused.catalauncher.helper.Constants.APP_NAME;
 
 import com.dazednconfused.catalauncher.backup.SaveManager;
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
-import com.dazednconfused.catalauncher.gui.action.SaveBackupActions;
+import com.dazednconfused.catalauncher.gui.listener.SaveBackupActions;
 import com.dazednconfused.catalauncher.helper.FileExplorerManager;
 import com.dazednconfused.catalauncher.helper.GitInfoManager;
 import com.dazednconfused.catalauncher.helper.LogLevelManager;
@@ -99,7 +99,6 @@ public class MainWindow {
     private JCheckBox backupOnExitCheckBox;
     private final SaveBackupActions saveBackupActions = new SaveBackupActions(
         mainPanel,
-        this::refreshGuiElements,
         globalProgressBar,
         saveBackupsTable,
         backupNowButton,
@@ -159,7 +158,7 @@ public class MainWindow {
         this.guiRefreshingRunnables = new Runnable[] {
                 this.setupTabbedPane(),
                 this.setupMainExecutableGui(),
-                this.setupSaveBackupsGui(),
+                this.setupSaveBackupGui(),
                 this.setupSoundpacksGui(),
                 this.setupModsGui()
         };
@@ -299,7 +298,7 @@ public class MainWindow {
      *
      * @return The {@link Runnable} in charge or refreshing all GUI elements related to this setup on-demand.
      * */
-    private Runnable setupSaveBackupsGui() {
+    private Runnable setupSaveBackupGui() {
 
         // BACKUP NOW BUTTON LISTENER ---
         this.backupNowButton.addActionListener(this.saveBackupActions.onSaveBackupButtonClicked());
@@ -325,7 +324,7 @@ public class MainWindow {
             }
         });
 
-        return this.saveBackupActions::refreshSaveBackupTab;
+        return this.saveBackupActions::refreshSaveBackupGui;
     }
 
     /**

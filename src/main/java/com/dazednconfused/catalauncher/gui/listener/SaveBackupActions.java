@@ -1,17 +1,19 @@
-package com.dazednconfused.catalauncher.gui.action;
+package com.dazednconfused.catalauncher.gui.listener;
 
 import com.dazednconfused.catalauncher.backup.SaveManager;
 import com.dazednconfused.catalauncher.gui.ConfirmDialog;
-
 import com.dazednconfused.catalauncher.gui.ErrorDialog;
 import com.dazednconfused.catalauncher.gui.StringInputDialog;
 import com.dazednconfused.catalauncher.helper.FileExplorerManager;
 import com.dazednconfused.catalauncher.helper.Paths;
 
-import lombok.NonNull;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -24,14 +26,14 @@ import javax.swing.event.ListSelectionListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 
-import java.awt.event.ActionListener;
-import java.awt.event.MouseEvent;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.List;
+import lombok.NonNull;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * This class comprises all actions related to Save Backup Management and its associated GUI elements.
+ * */
 public class SaveBackupActions {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SaveBackupActions.class);
@@ -43,11 +45,12 @@ public class SaveBackupActions {
     private final JButton backupRestoreButton;
     private final JCheckBox backupOnExitCheckBox;
     private final JProgressBar globalProgressBar;
-    private final Runnable signalFullGuiRefresh;
 
+    /**
+     * Public constructor.
+     * */
     public SaveBackupActions(
         @NonNull JPanel mainPanel,
-        @NonNull Runnable signalFullGuiRefresh,
         @NonNull JProgressBar globalProgressBar,
         @NonNull JTable saveBackupsTable,
         @NonNull JButton backupNowButton,
@@ -62,9 +65,11 @@ public class SaveBackupActions {
         this.backupRestoreButton = backupRestoreButton;
         this.backupOnExitCheckBox = backupOnExitCheckBox;
         this.globalProgressBar = globalProgressBar;
-        this.signalFullGuiRefresh = signalFullGuiRefresh;
     }
 
+    /**
+     * The action to be performed on {@link #backupNowButton}'s click.
+     * */
     public ActionListener onSaveBackupButtonClicked() {
         return e -> {
             LOGGER.trace("Save backup button clicked");
@@ -75,10 +80,13 @@ public class SaveBackupActions {
             // disable backup buttons (don't want to do multiple operations simultaneously)
             this.disableSaveBackupButtons();
 
-            SaveManager.backupCurrentSaves(percentageComplete -> this.globalProgressBar.setValue(percentageComplete)).ifPresent(Thread::start);
+            SaveManager.backupCurrentSaves(this.globalProgressBar::setValue).ifPresent(Thread::start);
         };
     }
 
+    /**
+     * The action to be performed on {@link #backupRestoreButton}'s click.
+     * */
     public ActionListener onSaveBackupRestoreButtonClicked() {
         return e -> {
             LOGGER.trace("Save backup restore button clicked");
@@ -101,10 +109,10 @@ public class SaveBackupActions {
 
                         SaveManager.restoreBackup(
                             selectedBackup,
-                            percentageComplete -> this.globalProgressBar.setValue(percentageComplete)
+                            this.globalProgressBar::setValue
                         ).ifPresent(Thread::start);
 
-                        this.signalFullGuiRefresh.run();
+                        this.refreshSaveBackupGui();
                     }
                 }
             );
@@ -113,6 +121,9 @@ public class SaveBackupActions {
         };
     }
 
+    /**
+     * The action to be performed on {@link #backupDeleteButton}'s click.
+     * */
     public ActionListener onDeleteBackupButtonClicked() {
         return e -> {
             LOGGER.trace("Delete backup button clicked");
@@ -128,7 +139,7 @@ public class SaveBackupActions {
 
                     if (confirmed) {
                         SaveManager.deleteBackup(selectedBackup);
-                        this.signalFullGuiRefresh.run();
+                        this.refreshSaveBackupGui();
                     }
                 }
             );
@@ -137,6 +148,9 @@ public class SaveBackupActions {
         };
     }
 
+    /**
+     * The action to be performed on {@link #saveBackupsTable}'s row selection.
+     * */
     public ListSelectionListener onSaveBackupsTableRowSelected() {
         return event -> {
             LOGGER.trace("Save backups table row selected");
@@ -148,6 +162,9 @@ public class SaveBackupActions {
         };
     }
 
+    /**
+     * The action to be performed on {@link #saveBackupsTable}'s click.
+     * */
     public void onSaveBackupsTableClicked(MouseEvent e) {
         LOGGER.trace("Save backups table clicked");
 
@@ -189,7 +206,7 @@ public class SaveBackupActions {
                             )
                         );
 
-                        this.signalFullGuiRefresh.run();
+                        this.refreshSaveBackupGui();
                     }
                 );
 
@@ -209,7 +226,10 @@ public class SaveBackupActions {
         }
     }
 
-    public void refreshSaveBackupTab() {
+    /**
+     * Refreshes all GUI components corresponding to Save Backup Management.
+     * */
+    public void refreshSaveBackupGui() {
         LOGGER.trace("Refreshing save-backup-management GUI elements...");
 
         boolean saveFilesExist = SaveManager.saveFilesExist();
@@ -261,7 +281,7 @@ public class SaveBackupActions {
     }
 
     /**
-     * Disables all backup-section buttons.
+     * Disables all Save Backup Management buttons.
      */
     private void disableSaveBackupButtons() {
         LOGGER.trace("Disabling save backup buttons...");
