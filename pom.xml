@@ -102,16 +102,11 @@
                     </plugin>
 
                     <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <version>3.3.0</version>
+                        <groupId>org.openjfx</groupId>
+                        <artifactId>javafx-maven-plugin</artifactId>
+                        <version>0.0.8</version>
                         <configuration>
-                            <archive>
-                                <manifest>
-                                    <addClasspath>true</addClasspath>
-                                    <mainClass>com.dazednconfused.catalauncher.Application</mainClass>
-                                </manifest>
-                            </archive>
+                            <mainClass>com.dazednconfused.catalauncher.Application</mainClass>
                         </configuration>
                     </plugin>
 
@@ -246,6 +241,24 @@
             <groupId>com.formdev</groupId>
             <artifactId>flatlaf</artifactId>
             <version>3.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>li.flor</groupId>
+            <artifactId>native-j-file-chooser</artifactId>
+            <version>1.6.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>19.0.2.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>19.0.2.1</version>
         </dependency>
 
         <dependency>

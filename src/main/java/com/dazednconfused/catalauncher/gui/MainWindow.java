@@ -19,6 +19,7 @@ import com.formdev.flatlaf.FlatLaf;
 import io.vavr.control.Try;
 
 import java.awt.Component;
+import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -31,7 +32,9 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.ObjIntConsumer;
 
+import javax.swing.AbstractAction;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
@@ -56,6 +59,8 @@ import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
+
+import li.flor.nativejfilechooser.NativeJFileChooser;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -230,9 +235,23 @@ public class MainWindow {
 
         // OPEN FINDER BUTTON LISTENER ---
         this.openFinderButton.addActionListener(e -> {
-            LOGGER.trace("Explore button clicked");
+            LOGGER.trace("Find executable button clicked");
 
-            this.openFinder(this.mainPanel);
+            this.cddaExecutableFTextField.setText(""); // clear your JTextArea.
+
+            JFileChooser cddaAppChooser = new NativeJFileChooser();
+            cddaAppChooser.setDialogTitle("Select your CDDA Executable");
+            cddaAppChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+            cddaAppChooser.setFileFilter(new FileNameExtensionFilter("CDDA .app file", ".app"));
+            int result = cddaAppChooser.showOpenDialog(this.mainPanel);
+
+            if (result == JFileChooser.APPROVE_OPTION && cddaAppChooser.getSelectedFile() != null) {
+                String fileName = cddaAppChooser.getSelectedFile().getPath();
+                ConfigurationManager.getInstance().setCddaPath(fileName);
+                this.cddaExecutableFTextField.setText(fileName);
+            } else {
+                LOGGER.trace("Exiting CDDA .app finder with no selection...");
+            }
 
             this.refreshGuiElements();
         });
@@ -459,10 +478,10 @@ public class MainWindow {
         this.installSoundpackButton.addActionListener(e -> {
             LOGGER.trace("Install soundpack button clicked");
 
-            JFileChooser fileChooser = new JFileChooser();
+            JFileChooser fileChooser = new NativeJFileChooser();
             fileChooser.setDialogTitle("Select soundpack folder to install");
             fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-            int result = fileChooser.showSaveDialog(mainPanel);
+            int result = fileChooser.showOpenDialog(mainPanel);
 
             if (result == JFileChooser.APPROVE_OPTION && fileChooser.getSelectedFile() != null) {
 
@@ -600,12 +619,23 @@ public class MainWindow {
     private Runnable setupModsGui() {
 
         // MOD INSTALL BUTTON LISTENER ---
-        this.installModButton.addActionListener(e -> {
+
+        // since JavaFX doesn't support a File Dialog for both files _AND_ directories, we have to get creative...
+        //
+        // (PS: sometimes I hate you Java, it's 2024 ffs. The only reason why this is not a feature already is that there supposedly
+        // is no true way to achieve this cross-platform; and the unsupported platforms are Windows XP and Linux/GTK. Windows XP
+        // is not even compatible with the Java version required to run JavaFX!!!)
+        // https://stackoverflow.com/a/18237547
+        //
+        // the install button is going to open a tiny popup that will, in turn, open a dialog for either zip files OR directories
+        // this is in order to support modpacks that can either be present as isolated directories, or fresh zip downloads
+
+        ObjIntConsumer<ActionEvent> installModButtonClickedFor = (e, jFileChooserType) -> {
             LOGGER.trace("Install mod button clicked");
 
-            JFileChooser fileChooser = new JFileChooser();
+            JFileChooser fileChooser = new NativeJFileChooser();
             fileChooser.setDialogTitle("Select mod folder/zip to install");
-            fileChooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+            fileChooser.setFileSelectionMode(jFileChooserType);
             fileChooser.setFileFilter(new FileFilter() {
                 // set a custom file filter to allow only ZIP files or directories
                 @Override
@@ -625,7 +655,7 @@ public class MainWindow {
                 }
             });
 
-            int result = fileChooser.showSaveDialog(mainPanel);
+            int result = fileChooser.showOpenDialog(mainPanel);
 
             if (result == JFileChooser.APPROVE_OPTION && fileChooser.getSelectedFile() != null) {
 
@@ -679,6 +709,25 @@ public class MainWindow {
                 worker.execute();
             } else {
                 LOGGER.trace("Exiting mod finder dialog with no selection...");
+            }
+        };
+
+        final JPopupMenu installModButtonPopupMenu = new JPopupMenu();
+        installModButtonPopupMenu.add(new JMenuItem(new AbstractAction("...from .ZIP file") {
+            public void actionPerformed(ActionEvent e) {
+                installModButtonClickedFor.accept(e, JFileChooser.FILES_ONLY);
+            }
+        }));
+        installModButtonPopupMenu.add(new JMenuItem(new AbstractAction("...from directory") {
+            public void actionPerformed(ActionEvent e) {
+                installModButtonClickedFor.accept(e, JFileChooser.DIRECTORIES_ONLY);
+            }
+        }));
+
+        this.installModButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                installModButtonPopupMenu.show(e.getComponent(), e.getX(), e.getY());
             }
         });
 
@@ -874,27 +923,6 @@ public class MainWindow {
     private void refreshGuiElements() {
         for (Runnable guiRefreshRunnable : this.guiRefreshingRunnables) {
             new Thread(guiRefreshRunnable).start();
-        }
-    }
-
-    /**
-     * Opens a finder dialog and populates the executable field with the selected file/folder.
-     */
-    private void openFinder(Component parent) {
-        this.cddaExecutableFTextField.setText(""); // clear your JTextArea.
-
-        JFileChooser cddaAppChooser = new JFileChooser();
-        cddaAppChooser.setDialogTitle("Select your CDDA Executable");
-        cddaAppChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        cddaAppChooser.setFileFilter(new FileNameExtensionFilter("CDDA .app file", ".app"));
-        int result = cddaAppChooser.showSaveDialog(parent);
-
-        if (result == JFileChooser.APPROVE_OPTION && cddaAppChooser.getSelectedFile() != null) {
-            String fileName = cddaAppChooser.getSelectedFile().getPath();
-            ConfigurationManager.getInstance().setCddaPath(fileName);
-            this.cddaExecutableFTextField.setText(fileName);
-        } else {
-            LOGGER.trace("Exiting CDDA .app finder with no selection...");
         }
     }
 
