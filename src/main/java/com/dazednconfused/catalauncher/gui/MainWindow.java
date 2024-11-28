@@ -204,6 +204,7 @@ public class MainWindow {
         this.globalProgressBar.addChangeListener(e -> {
             if (this.globalProgressBar.getValue() == 100) {
                 // refresh gui
+                // TODO remove this global refresh here in the progress bar - ideally each tab should know whether to refresh their elements or not
                 this.refreshGuiElements();
 
                 // reset backup progressbar

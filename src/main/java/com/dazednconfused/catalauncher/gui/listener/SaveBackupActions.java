@@ -80,7 +80,18 @@ public class SaveBackupActions {
             // disable backup buttons (don't want to do multiple operations simultaneously)
             this.disableSaveBackupButtons();
 
-            SaveManager.backupCurrentSaves(this.globalProgressBar::setValue).ifPresent(Thread::start);
+            SaveManager.backupCurrentSaves(this.globalProgressBar::setValue).ifPresent(saveBackupThread -> new Thread(() -> {
+                try {
+                    saveBackupThread.start();
+                    saveBackupThread.join();
+                } catch (InterruptedException ex) {
+                    LOGGER.error("An error has occurred while waiting for the save-backup-ing thread to terminate. GUI elements may not refresh properly as a result.", ex);
+                } finally {
+                    this.refreshSaveBackupGui();
+                }
+            }).start());
+
+            this.refreshSaveBackupGui();
         };
     }
 
@@ -110,9 +121,16 @@ public class SaveBackupActions {
                         SaveManager.restoreBackup(
                             selectedBackup,
                             this.globalProgressBar::setValue
-                        ).ifPresent(Thread::start);
-
-                        this.refreshSaveBackupGui();
+                        ).ifPresent(restoreBackupThread -> new Thread(() -> {
+                            try {
+                                restoreBackupThread.start();
+                                restoreBackupThread.join();
+                            } catch (InterruptedException ex) {
+                                LOGGER.error("An error has occurred while waiting for the save-backup-restoring thread to terminate. GUI elements may not refresh properly as a result.", ex);
+                            } finally {
+                                this.refreshSaveBackupGui();
+                            }
+                        }).start());
                     }
                 }
             );
@@ -139,8 +157,9 @@ public class SaveBackupActions {
 
                     if (confirmed) {
                         SaveManager.deleteBackup(selectedBackup);
-                        this.refreshSaveBackupGui();
                     }
+
+                    this.refreshSaveBackupGui();
                 }
             );
 
