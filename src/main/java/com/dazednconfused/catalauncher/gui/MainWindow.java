@@ -4,16 +4,14 @@ import static com.dazednconfused.catalauncher.helper.Constants.APP_NAME;
 
 import com.dazednconfused.catalauncher.backup.SaveManager;
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
+import com.dazednconfused.catalauncher.gui.listener.ModActions;
 import com.dazednconfused.catalauncher.gui.listener.SaveBackupActions;
 import com.dazednconfused.catalauncher.gui.listener.SoundpackActions;
-import com.dazednconfused.catalauncher.helper.FileExplorerManager;
 import com.dazednconfused.catalauncher.helper.GitInfoManager;
 import com.dazednconfused.catalauncher.helper.LogLevelManager;
 import com.dazednconfused.catalauncher.helper.Paths;
 import com.dazednconfused.catalauncher.helper.sysinfo.SystemInfoManager;
 import com.dazednconfused.catalauncher.launcher.CDDALauncherManager;
-import com.dazednconfused.catalauncher.mod.ModManager;
-import com.dazednconfused.catalauncher.mod.dto.ModDTO;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLaf;
 
@@ -26,13 +24,6 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.ObjIntConsumer;
 
 import javax.swing.AbstractAction;
 import javax.swing.JButton;
@@ -50,19 +41,12 @@ import javax.swing.JProgressBar;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.KeyStroke;
-import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
-import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableModel;
 
 import li.flor.nativejfilechooser.NativeJFileChooser;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.log4j.Level;
 import org.slf4j.Logger;
@@ -122,6 +106,13 @@ public class MainWindow {
     private JTable modsTable;
     private JButton installModButton;
     private JButton uninstallModButton;
+    private final ModActions modActions = new ModActions(
+        mainPanel,
+        globalProgressBar,
+        modsTable,
+        installModButton,
+        uninstallModButton
+    );
 
     /**
      * {@link MainWindow}'s main entrypoint.
@@ -209,9 +200,6 @@ public class MainWindow {
         // GLOBAL PROGRESS BAR LISTENER ---
         this.globalProgressBar.addChangeListener(e -> {
             if (this.globalProgressBar.getValue() == 100) {
-                // refresh gui
-                // TODO remove this global refresh here in the progress bar - ideally each tab should know whether to refresh their elements or not
-                // this.refreshGuiElements();
 
                 // reset backup progressbar
                 this.globalProgressBar.setValue(0);
@@ -371,108 +359,15 @@ public class MainWindow {
     private Runnable setupModsGui() {
 
         // MOD INSTALL BUTTON LISTENER ---
-
-        // since JavaFX doesn't support a File Dialog for both files _AND_ directories, we have to get creative...
-        //
-        // (PS: sometimes I hate you Java, it's 2024 ffs. The only reason why this is not a feature already is that there supposedly
-        // is no true way to achieve this cross-platform; and the unsupported platforms are Windows XP and Linux/GTK. Windows XP
-        // is not even compatible with the Java version required to run JavaFX!!!)
-        // https://stackoverflow.com/a/18237547
-        //
-        // the install button is going to open a tiny popup that will, in turn, open a dialog for either zip files OR directories
-        // this is in order to support modpacks that can either be present as isolated directories, or fresh zip downloads
-
-        ObjIntConsumer<ActionEvent> installModButtonClickedFor = (e, jFileChooserType) -> {
-            LOGGER.trace("Install mod button clicked");
-
-            JFileChooser fileChooser = new NativeJFileChooser();
-            fileChooser.setDialogTitle("Select mod folder/zip to install");
-            fileChooser.setFileSelectionMode(jFileChooserType);
-            fileChooser.setFileFilter(new FileFilter() {
-                // set a custom file filter to allow only ZIP files or directories
-                @Override
-                public boolean accept(File file) {
-                    // accept directories
-                    if (file.isDirectory()) {
-                        return true;
-                    }
-                    // accept files that end with .zip
-                    String fileName = file.getName().toLowerCase();
-                    return fileName.endsWith(".zip");
-                }
-
-                @Override
-                public String getDescription() {
-                    return "ZIP files and directories";
-                }
-            });
-
-            int result = fileChooser.showOpenDialog(mainPanel);
-
-            if (result == JFileChooser.APPROVE_OPTION && fileChooser.getSelectedFile() != null) {
-
-                // enable global progressbar
-                this.globalProgressBar.setEnabled(true);
-
-                // setup dummy timer to give user visual feedback that his operation is in progress...
-                Timer dummyTimer = new Timer(10, e1 -> {
-                    if (this.globalProgressBar.getValue() < 99) { // it's important to keep this from hitting 100% while it is in its dummy-loop...
-                        this.globalProgressBar.setValue(this.globalProgressBar.getValue() + 1);
-                    }
-                });
-
-                // start timer before triggering installation
-                dummyTimer.start();
-
-                // execute the installation in a background thread, outside the Event Dispatch Thread (EDT)
-                SwingWorker<Void, Void> worker = new SwingWorker<>() {
-                    @Override
-                    protected Void doInBackground() {
-                        ModManager.getInstance().installMod(fileChooser.getSelectedFile(), p -> dummyTimer.stop()).toEither().fold(
-                            failure -> {
-                                LOGGER.error("There was a problem while installing mod [{}]", fileChooser.getSelectedFile(), failure.getError());
-
-                                // show error dialog on the EDT
-                                SwingUtilities.invokeLater(() -> {
-                                    dummyTimer.stop(); // stop dummyTimer on error
-                                    ErrorDialog.showErrorDialog(
-                                        String.format("There was a problem while installing mod [%s]", fileChooser.getSelectedFile().getName()),
-                                        failure.getError()
-                                    ).packCenterAndShow(mainPanel);
-                                });
-                                return null;
-                            },
-                            success -> {
-                                LOGGER.info("Mod [{}] has been successfully installed!", fileChooser.getSelectedFile());
-                                return null;
-                            }
-                        );
-                        return null;
-                    }
-
-                    @Override
-                    protected void done() {
-                        dummyTimer.stop(); // ensure the timer is stopped when the task is complete
-                        globalProgressBar.setValue(100); // this will refresh the GUI upon hitting 100%
-                    }
-                };
-
-                // start the worker thread
-                worker.execute();
-            } else {
-                LOGGER.trace("Exiting mod finder dialog with no selection...");
-            }
-        };
-
         final JPopupMenu installModButtonPopupMenu = new JPopupMenu();
         installModButtonPopupMenu.add(new JMenuItem(new AbstractAction("...from .ZIP file") {
             public void actionPerformed(ActionEvent e) {
-                installModButtonClickedFor.accept(e, JFileChooser.FILES_ONLY);
+                modActions.onInstallModButtonClickedFor(e, JFileChooser.FILES_ONLY);
             }
         }));
         installModButtonPopupMenu.add(new JMenuItem(new AbstractAction("...from directory") {
             public void actionPerformed(ActionEvent e) {
-                installModButtonClickedFor.accept(e, JFileChooser.DIRECTORIES_ONLY);
+                modActions.onInstallModButtonClickedFor(e, JFileChooser.DIRECTORIES_ONLY);
             }
         }));
 
@@ -484,102 +379,22 @@ public class MainWindow {
         });
 
         // MOD DELETE BUTTON LISTENER ---
-        this.uninstallModButton.addActionListener(e -> {
-            LOGGER.trace("Uninstall mod button clicked");
-
-            File selectedMod = (File) this.modsTable.getValueAt(this.modsTable.getSelectedRow(), 1);
-            LOGGER.trace("Mod currently on selection: [{}]", selectedMod);
-
-            ConfirmDialog confirmDialog = new ConfirmDialog(
-                String.format(
-                    "Are you sure you want to uninstall the mod [%s]? It will be moved to trash folder [%s]",
-                    selectedMod.getName(),
-                    Paths.getCustomTrashedModsPath()
-                ),
-                ConfirmDialog.ConfirmDialogType.WARNING,
-                confirmed -> {
-                    LOGGER.trace("Confirmation dialog result: [{}]", confirmed);
-
-                    if (confirmed) {
-                        ModManager.getInstance().uninstallMod(
-                            ModManager.getInstance().getModFor(selectedMod).orElseThrow(),
-                            ModManager.DO_NOTHING_ACTION
-                        );
-
-                        this.refreshGuiElements();
-                    }
-                }
-            );
-
-            confirmDialog.packCenterAndShow(this.mainPanel);
-        });
+        this.uninstallModButton.addActionListener(this.modActions.onUninstallModButtonClicked());
 
         // MODS TABLE LISTENER(S) ---
-        this.modsTable.getSelectionModel().addListSelectionListener(event -> {
-            LOGGER.trace("Mods table row selected");
-
-            if (modsTable.getSelectedRow() > -1) {
-                this.uninstallModButton.setEnabled(true);
-            }
-        });
-
-        BiConsumer<MouseEvent, JTable> onModsTableRightClickEvent = (e, table) -> {
-            LOGGER.trace("Mods table clicked");
-
-            int r = table.rowAtPoint(e.getPoint());
-            if (r >= 0 && r < table.getRowCount()) {
-                table.setRowSelectionInterval(r, r);
-            } else {
-                table.clearSelection();
-            }
-
-            int rowindex = table.getSelectedRow();
-            if (rowindex < 0) {
-                return;
-            }
-
-            if (e.isPopupTrigger() && e.getComponent() instanceof JTable) {
-                LOGGER.trace("Opening right-click popup for [{}]", table.getName());
-                File targetFile = ((File) table.getValueAt(table.getSelectedRow(), 1));
-
-                JPopupMenu popup = new JPopupMenu();
-
-                JMenuItem openInFinder = new JMenuItem("Open folder in file explorer");
-                openInFinder.addActionListener(e1 -> {
-                    FileExplorerManager.openFileInFileExplorer(targetFile, false);
-                });
-                popup.add(openInFinder);
-
-                JMenuItem uninstall = new JMenuItem("Uninstall...");
-                uninstall.addActionListener(e1 -> uninstallModButton.doClick());
-                popup.add(uninstall);
-
-                popup.show(e.getComponent(), e.getX(), e.getY());
-            }
-        };
+        this.modsTable.getSelectionModel().addListSelectionListener(this.modActions.onModsTableRowSelected());
 
         this.modsTable.addMouseListener(new MouseAdapter() {
             public void mousePressed(MouseEvent e) { // mousedPressed event needed for macOS - https://stackoverflow.com/a/3558324
-                onModsTableRightClickEvent.accept(e, (JTable) e.getComponent());
+                modActions.onModsTableClicked(e);
             }
 
             public void mouseReleased(MouseEvent e) { // mouseReleased event needed for other OSes
-                onModsTableRightClickEvent.accept(e, (JTable) e.getComponent());
+                modActions.onModsTableClicked(e);
             }
         });
 
-        return () -> {
-            LOGGER.trace("Refreshing mod-management GUI elements...");
-
-            // SET MODS TABLE ---
-            this.refreshModsTable();
-
-            // DETERMINE IF MOD DELETE BUTTON SHOULD BE DISABLED ---
-            // (ie: if last mod was just deleted)
-            if (ModManager.getInstance().listAllRegisteredMods().isEmpty() || this.modsTable.getSelectedRow() == -1) {
-                this.uninstallModButton.setEnabled(false);
-            }
-        };
+        return this.modActions::refreshModGui;
     }
 
     /**
@@ -665,36 +480,6 @@ public class MainWindow {
         for (Runnable guiRefreshRunnable : this.guiRefreshingRunnables) {
             new Thread(guiRefreshRunnable).start();
         }
-    }
-
-    /**
-     * Refreshes current {@link #modsTable} with latest info coming from {@link ModManager}.
-     */
-    private void refreshModsTable() {
-        LOGGER.trace("Refreshing mods table...");
-
-        String[] columns = new String[]{"Name", "Path", "Size", "Install date", "Last updated"};
-
-        List<Object[]> values = new ArrayList<>();
-        ModManager.getInstance().listAllRegisteredMods().stream().sorted(Comparator.comparing(ModDTO::getId)).forEach(mod -> {
-            Path modPath = ModManager.getInstance().getPathFor(mod);
-            File modFile = new File(modPath.toString());
-            values.add(new Object[]{
-                mod.getName(),
-                modFile,
-                FileUtils.sizeOfDirectory(modFile) / (1024) + " KB",
-                mod.getCreatedDate(),
-                mod.getUpdatedDate()
-            });
-        });
-
-        TableModel tableModel = new DefaultTableModel(values.toArray(new Object[][]{}), columns) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        this.modsTable.setModel(tableModel);
     }
 
     /**
