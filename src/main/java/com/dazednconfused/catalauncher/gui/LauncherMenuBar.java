@@ -1,16 +1,14 @@
 package com.dazednconfused.catalauncher.gui;
 
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
-
 import com.dazednconfused.catalauncher.helper.LogLevelManager;
 
 import io.vavr.control.Try;
 
-import lombok.Getter;
-
-import org.apache.log4j.Level;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.awt.Component;
+import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
@@ -18,10 +16,11 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.KeyStroke;
 
-import java.awt.Component;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
+import lombok.Getter;
+
+import org.apache.log4j.Level;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class comprises all actions related to the Launcher's Menu Bar and its associated GUI elements.
