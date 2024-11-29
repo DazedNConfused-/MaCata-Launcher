@@ -2,16 +2,14 @@ package com.dazednconfused.catalauncher.gui;
 
 import static com.dazednconfused.catalauncher.helper.Constants.APP_NAME;
 
-import com.dazednconfused.catalauncher.backup.SaveManager;
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
+import com.dazednconfused.catalauncher.gui.listener.ExecutableLauncherActions;
 import com.dazednconfused.catalauncher.gui.listener.ModActions;
 import com.dazednconfused.catalauncher.gui.listener.SaveBackupActions;
 import com.dazednconfused.catalauncher.gui.listener.SoundpackActions;
 import com.dazednconfused.catalauncher.helper.GitInfoManager;
 import com.dazednconfused.catalauncher.helper.LogLevelManager;
-import com.dazednconfused.catalauncher.helper.Paths;
 import com.dazednconfused.catalauncher.helper.sysinfo.SystemInfoManager;
-import com.dazednconfused.catalauncher.launcher.CDDALauncherManager;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLaf;
 
@@ -43,11 +41,7 @@ import javax.swing.JTable;
 import javax.swing.KeyStroke;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-import javax.swing.filechooser.FileNameExtensionFilter;
 
-import li.flor.nativejfilechooser.NativeJFileChooser;
-
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.log4j.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,11 +50,8 @@ public class MainWindow {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MainWindow.class);
 
-    private static final String[] CUSTOM_SAVE_DIR_ARGS = { "--savedir", Paths.getCustomSavePath() + "/" };
-    private static final String[] CUSTOM_USER_DIR_ARGS = { "--userdir", Paths.getCustomUserDir()  + "/" };
-
     /**
-     * The array of all {@link Runnable}s to be executed on invocation of {@link #refreshGuiElements()}.
+     * The array of all {@link Runnable}s to be executed on invocation of {@link #refreshAllGuiElements()}.
      * */
     private final Runnable[] guiRefreshingRunnables;
 
@@ -70,9 +61,17 @@ public class MainWindow {
 
     // LAUNCHER TAB ---
     private JFormattedTextField cddaExecutableFTextField;
-    private JButton openFinderButton;
+    private JButton openExecutableFinderButton;
     private JButton runButton;
     private JButton runLatestWorldButton;
+    private final ExecutableLauncherActions executableLauncherActions = new ExecutableLauncherActions(
+        mainPanel,
+        globalProgressBar,
+        cddaExecutableFTextField,
+        openExecutableFinderButton,
+        runButton,
+        runLatestWorldButton
+    );
 
     // SAVE BACKUPS TAB ---
     private JTable saveBackupsTable;
@@ -160,7 +159,7 @@ public class MainWindow {
                 this.setupModsGui()
         };
 
-        this.refreshGuiElements();
+        this.refreshAllGuiElements();
 
         new Thread(this::checkForUpdates).start(); // check for updates on a background thread, to not slow down application's startup
     }
@@ -198,94 +197,18 @@ public class MainWindow {
     private Runnable setupMainExecutableGui() {
 
         // GLOBAL PROGRESS BAR LISTENER ---
-        this.globalProgressBar.addChangeListener(e -> {
-            if (this.globalProgressBar.getValue() == 100) {
-
-                // reset backup progressbar
-                this.globalProgressBar.setValue(0);
-
-                // disable until next backup
-                this.globalProgressBar.setEnabled(false);
-            }
-        });
+        this.globalProgressBar.addChangeListener(this.executableLauncherActions.onGlobalProgressBarChangeListener());
 
         // RUN BUTTON LISTENER ---
-        this.runButton.addActionListener(e -> {
-            LOGGER.trace("Run button clicked");
-            this.runButton.setEnabled(false);
-
-            String[] launcherArgs = ArrayUtils.addAll(CUSTOM_SAVE_DIR_ARGS, CUSTOM_USER_DIR_ARGS);
-
-            Process cddaProcess = CDDALauncherManager.executeCddaApplication(
-                    ConfigurationManager.getInstance().getCddaPath(), launcherArgs
-            );
-            CDDALauncherManager.monitorCddaProcess(cddaProcess, this::refreshGuiElements);
-        });
+        this.runButton.addActionListener(this.executableLauncherActions.onRunButtonClicked());
 
         // RUN LATEST WORLD BUTTON LISTENER ---
-        this.runLatestWorldButton.addActionListener(e -> {
-            LOGGER.trace("Run Latest World clicked");
-            this.runLatestWorldButton.setEnabled(false);
+        this.runLatestWorldButton.addActionListener(this.executableLauncherActions.onRunLatestWorldClicked());
 
-            String[] lastWorldArgs = SaveManager.getLatestSave().map(latestSave -> new String[]{ "--world", latestSave.getName() }).orElse(new String[]{});
-            String[] launcherArgs = ArrayUtils.addAll(
-                    ArrayUtils.addAll(CUSTOM_SAVE_DIR_ARGS, CUSTOM_USER_DIR_ARGS), lastWorldArgs
-            );
+        // OPEN EXECUTABLE FINDER BUTTON LISTENER ---
+        this.openExecutableFinderButton.addActionListener(this.executableLauncherActions.onOpenExecutableFinderButtonClicked());
 
-            Process cddaProcess = CDDALauncherManager.executeCddaApplication(
-                    ConfigurationManager.getInstance().getCddaPath(), launcherArgs
-            );
-            CDDALauncherManager.monitorCddaProcess(cddaProcess, this::refreshGuiElements);
-        });
-
-        // OPEN FINDER BUTTON LISTENER ---
-        this.openFinderButton.addActionListener(e -> {
-            LOGGER.trace("Find executable button clicked");
-
-            this.cddaExecutableFTextField.setText(""); // clear your JTextArea.
-
-            JFileChooser cddaAppChooser = new NativeJFileChooser();
-            cddaAppChooser.setDialogTitle("Select your CDDA Executable");
-            cddaAppChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-            cddaAppChooser.setFileFilter(new FileNameExtensionFilter("CDDA .app file", ".app"));
-            int result = cddaAppChooser.showOpenDialog(this.mainPanel);
-
-            if (result == JFileChooser.APPROVE_OPTION && cddaAppChooser.getSelectedFile() != null) {
-                String fileName = cddaAppChooser.getSelectedFile().getPath();
-                ConfigurationManager.getInstance().setCddaPath(fileName);
-                this.cddaExecutableFTextField.setText(fileName);
-            } else {
-                LOGGER.trace("Exiting CDDA .app finder with no selection...");
-            }
-
-            this.refreshGuiElements();
-        });
-
-        return () -> {
-            LOGGER.trace("Refreshing executable-management GUI elements...");
-
-            String cddaPath = ConfigurationManager.getInstance().getCddaPath();
-
-            boolean saveFilesExist = SaveManager.saveFilesExist();
-            boolean pathPointsToValidGameExecutable = cddaPath != null && !cddaPath.isBlank();
-
-            // SET EXECUTABLE TEXT FIELD WITH CDDA PATH FROM CONFIG ---
-            // DETERMINE IF RUN BUTTON SHOULD BE ENABLED ---
-            if (pathPointsToValidGameExecutable) {
-                this.cddaExecutableFTextField.setText(cddaPath);
-                this.runButton.setEnabled(true);
-            } else {
-                this.cddaExecutableFTextField.setText(null);
-                this.runButton.setEnabled(false);
-            }
-
-            // DETERMINE IF RUN LATEST WORLD BUTTON SHOULD BE ENABLED ---
-            if (pathPointsToValidGameExecutable && saveFilesExist && SaveManager.getLatestSave().isPresent()) {
-                this.runLatestWorldButton.setEnabled(true);
-            } else {
-                this.runLatestWorldButton.setEnabled(false);
-            }
-        };
+        return this.executableLauncherActions::refreshExecutableLauncherGui;
     }
 
     /**
@@ -472,11 +395,12 @@ public class MainWindow {
     }
 
     /**
-     * Refreshes all GUI elements according to diverse app statuses.
+     * Refreshes all GUI elements.
      *
+     * @apiNote This is an expensive operation. Use with discretion.
      * @implNote Refresh is done in the background by means of individual {@link Thread}s.
      */
-    private void refreshGuiElements() {
+    private void refreshAllGuiElements() {
         for (Runnable guiRefreshRunnable : this.guiRefreshingRunnables) {
             new Thread(guiRefreshRunnable).start();
         }
