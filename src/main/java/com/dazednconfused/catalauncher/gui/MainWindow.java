@@ -4,6 +4,7 @@ import static com.dazednconfused.catalauncher.helper.Constants.APP_NAME;
 
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
 import com.dazednconfused.catalauncher.gui.listener.ExecutableLauncherActions;
+import com.dazednconfused.catalauncher.gui.listener.LauncherMenuBar;
 import com.dazednconfused.catalauncher.gui.listener.ModActions;
 import com.dazednconfused.catalauncher.gui.listener.SaveBackupActions;
 import com.dazednconfused.catalauncher.gui.listener.SoundpackActions;
@@ -13,11 +14,7 @@ import com.dazednconfused.catalauncher.helper.sysinfo.SystemInfoManager;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLaf;
 
-import io.vavr.control.Try;
-
-import java.awt.Component;
 import java.awt.event.ActionEvent;
-import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -26,19 +23,15 @@ import java.awt.event.MouseEvent;
 import javax.swing.AbstractAction;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFileChooser;
 import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JProgressBar;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
-import javax.swing.KeyStroke;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
@@ -135,7 +128,7 @@ public class MainWindow {
 
         JFrame frame = new JFrame(APP_NAME);
 
-        frame.setJMenuBar(buildMenuBarFor(frame));
+        frame.setJMenuBar(new LauncherMenuBar(frame).getMenuBar());
 
         frame.setContentPane(new MainWindow().mainPanel);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -159,8 +152,10 @@ public class MainWindow {
                 this.setupModsGui()
         };
 
+        // DRAW/REFRESH ALL GUI ELEMENTS ---
         this.refreshAllGuiElements();
 
+        // CHECK FOR SOFTWARE UPDATES ---
         new Thread(this::checkForUpdates).start(); // check for updates on a background thread, to not slow down application's startup
     }
 
@@ -208,6 +203,7 @@ public class MainWindow {
         // OPEN EXECUTABLE FINDER BUTTON LISTENER ---
         this.openExecutableFinderButton.addActionListener(this.executableLauncherActions.onOpenExecutableFinderButtonClicked());
 
+        // GUI COMPONENT'S REFRESH ACTION ---
         return this.executableLauncherActions::refreshExecutableLauncherGui;
     }
 
@@ -242,6 +238,7 @@ public class MainWindow {
             }
         });
 
+        // GUI COMPONENT'S REFRESH ACTION ---
         return this.saveBackupActions::refreshSaveBackupGui;
     }
 
@@ -271,6 +268,7 @@ public class MainWindow {
             }
         });
 
+        // GUI COMPONENT'S REFRESH ACTION ---
         return this.soundpackActions::refreshSoundpackGui;
     }
 
@@ -317,6 +315,7 @@ public class MainWindow {
             }
         });
 
+        // GUI COMPONENT'S REFRESH ACTION ---
         return this.modActions::refreshModGui;
     }
 
@@ -335,63 +334,6 @@ public class MainWindow {
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * Builds the main {@link Component}'s {@link JMenuBar}.
-     */
-    private static JMenuBar buildMenuBarFor(Component parent) {
-        LOGGER.trace("Building menu bar...");
-
-        // main menu bar ---
-        JMenuBar menuBar = new JMenuBar();
-
-        // help menu ---
-        JMenu helpMenu = new JMenu("Help");
-        helpMenu.setMnemonic(KeyEvent.VK_H);
-        menuBar.add(helpMenu);
-
-        // developer tools submenu --
-        JMenu developerTools = new JMenu("Developer Tools");
-        helpMenu.add(developerTools);
-
-        // show console log button -
-        JMenuItem showConsoleLog = new JMenuItem("Show console log");
-        showConsoleLog.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.ALT_DOWN_MASK));
-        showConsoleLog.addActionListener(e -> {
-            LOGGER.trace("Show console button clicked");
-            Try.of(ConsoleLogReader::new)
-                    .andThen(consoleLogReader -> consoleLogReader.packCenterAndShow(parent))
-                    .onFailure(throwable -> LOGGER.error("There was an error while ConsoleLogReader window: [{}]", throwable.getMessage()));
-        });
-        developerTools.add(showConsoleLog);
-
-        // debug mode checkbox -
-        JCheckBoxMenuItem debugMode = new JCheckBoxMenuItem("Debug mode");
-        debugMode.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.ALT_DOWN_MASK));
-        debugMode.setState(ConfigurationManager.getInstance().isDebug());
-        debugMode.addActionListener(e -> {
-            LOGGER.trace("Debug mode checkbox clicked. Enabled: [{}]", debugMode.getState());
-            ConfigurationManager.getInstance().setDebug(debugMode.getState());
-            LogLevelManager.changeGlobalLogLevelTo(debugMode.getState() ? Level.TRACE : Level.INFO);
-        });
-        developerTools.add(debugMode);
-
-        // separator --
-        helpMenu.addSeparator();
-
-        // about button --
-        JMenuItem about = new JMenuItem("About");
-        about.setMnemonic(KeyEvent.VK_T);
-        about.addActionListener(e -> {
-            LOGGER.trace("About button clicked");
-
-            VersionManagerWindow versionManagerWindow = new VersionManagerWindow();
-            versionManagerWindow.packCenterAndShow(parent);
-        });
-        helpMenu.add(about);
-
-        return menuBar;
     }
 
     /**
