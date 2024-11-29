@@ -1,9 +1,7 @@
-package com.dazednconfused.catalauncher.gui.listener;
+package com.dazednconfused.catalauncher.gui;
 
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
-import com.dazednconfused.catalauncher.gui.ConsoleLogReader;
 
-import com.dazednconfused.catalauncher.gui.VersionManagerWindow;
 import com.dazednconfused.catalauncher.helper.LogLevelManager;
 
 import io.vavr.control.Try;

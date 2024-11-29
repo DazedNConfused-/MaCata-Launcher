@@ -4,7 +4,6 @@ import static com.dazednconfused.catalauncher.helper.Constants.APP_NAME;
 
 import com.dazednconfused.catalauncher.configuration.ConfigurationManager;
 import com.dazednconfused.catalauncher.gui.listener.ExecutableLauncherActions;
-import com.dazednconfused.catalauncher.gui.listener.LauncherMenuBar;
 import com.dazednconfused.catalauncher.gui.listener.ModActions;
 import com.dazednconfused.catalauncher.gui.listener.SaveBackupActions;
 import com.dazednconfused.catalauncher.gui.listener.SoundpackActions;
