@@ -86,6 +86,7 @@ public class SaveBackupActions {
                     saveBackupThread.join();
                 } catch (InterruptedException ex) {
                     LOGGER.error("An error has occurred while waiting for the save-backup-ing thread to terminate. GUI elements may not refresh properly as a result.", ex);
+                    Thread.currentThread().interrupt();
                 } finally {
                     this.refreshSaveBackupGui();
                 }
@@ -127,6 +128,7 @@ public class SaveBackupActions {
                                 restoreBackupThread.join();
                             } catch (InterruptedException ex) {
                                 LOGGER.error("An error has occurred while waiting for the save-backup-restoring thread to terminate. GUI elements may not refresh properly as a result.", ex);
+                                Thread.currentThread().interrupt();
                             } finally {
                                 this.refreshSaveBackupGui();
                             }
