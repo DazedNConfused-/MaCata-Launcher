@@ -7,7 +7,6 @@ import com.dazednconfused.catalauncher.helper.Paths;
 import com.dazednconfused.catalauncher.mod.ModManager;
 import com.dazednconfused.catalauncher.mod.dto.ModDTO;
 
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -72,7 +71,7 @@ public class ModActions {
     /**
      * The action to be performed on {@link #installModButton}'s click.
      * */
-    public void onInstallModButtonClickedFor(ActionEvent e, int jFileChooserType) {
+    public void onInstallModButtonClickedFor(int jFileChooserType) {
 
         // since JavaFX doesn't support a File Dialog for both files _AND_ directories, we have to get creative...
         //

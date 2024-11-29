@@ -282,12 +282,12 @@ public class MainWindow {
         final JPopupMenu installModButtonPopupMenu = new JPopupMenu();
         installModButtonPopupMenu.add(new JMenuItem(new AbstractAction("...from .ZIP file") {
             public void actionPerformed(ActionEvent e) {
-                modActions.onInstallModButtonClickedFor(e, JFileChooser.FILES_ONLY);
+                modActions.onInstallModButtonClickedFor(JFileChooser.FILES_ONLY);
             }
         }));
         installModButtonPopupMenu.add(new JMenuItem(new AbstractAction("...from directory") {
             public void actionPerformed(ActionEvent e) {
-                modActions.onInstallModButtonClickedFor(e, JFileChooser.DIRECTORIES_ONLY);
+                modActions.onInstallModButtonClickedFor(JFileChooser.DIRECTORIES_ONLY);
             }
         }));
 
