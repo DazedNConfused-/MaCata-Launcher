@@ -15,7 +15,7 @@
 
         <sonar.organization>dazednconfused</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.cpd.exclusions>**/MainWindow.java</sonar.cpd.exclusions>
+        <sonar.cpd.exclusions>**/gui/**</sonar.cpd.exclusions>
     </properties>
 
     <profiles>
